@@ -14,5 +14,5 @@ Else
  WScript.Quit 1
 End If
 python = "pythonw.exe"
-cmd = "cmd /c " & Chr(34) & "pythonw.exe " & Chr(34) & script & Chr(34) & Chr(34)
+cmd = "pythonw.exe " & Chr(34) & script & Chr(34)
 sh.Run cmd, 0, False
