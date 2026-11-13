@@ -16,3 +16,23 @@ function draw(rows,sig){const container=$("chart");if(!rows.length){container.in
 $("file").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;const cutoff=$("cutoff").value;if(!cutoff){$("message").textContent="Set Completed through date before importing. Never include the unfinished daily candle.";e.target.value="";return;}try{const {rows,rejected}=parseCSV(await f.text(),$("source").value,cutoff);if(!rows.length)throw Error("No valid completed daily candles within the selected cutoff.");const map=new Map(candles.map(x=>[x.date,x]));let added=0,replaced=0;for(const x of rows){const old=map.get(x.date);if(!old){map.set(x.date,x);added++;}else if(x.source==="MT4"||old.source!=="MT4"){map.set(x.date,x);replaced++;}}candles=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date));save();render();$("message").textContent="Imported "+rows.length+" valid completed rows; "+added+" new dates, "+replaced+" updated dates, "+rejected+" skipped. MT4 has priority over MT5 proxy.";}catch(err){$("message").textContent="Import failed: "+err.message;}e.target.value="";});
 $("export").addEventListener("click",()=>{if(!candles.length){$("message").textContent="Nothing to export yet.";return;}const csv="date,open,high,low,close,source\n"+candles.map(x=>[x.date,x.open,x.high,x.low,x.close,x.source].join(",")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download="sma55_completed_daily_candles.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $("range").addEventListener("change",render);$("showBand").addEventListener("change",render);render();
+
+async function loadPublishedData(){
+ try{
+  const response=await fetch("./data/daily.json?ts="+Date.now(),{cache:"no-store"});
+  if(!response.ok)return;
+  const payload=await response.json();
+  if(!Array.isArray(payload.completed))return;
+  const map=new Map(candles.map(x=>[x.date,x]));
+  for(const x of payload.completed){
+   if(!valid(x))continue;
+   const existing=map.get(x.date);
+   if(!existing||x.source==="MT4"||existing.source!=="MT4")map.set(x.date,x);
+  }
+  candles=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  save();render();
+  $("message").textContent="Published MT4 history loaded automatically. Current provisional candle is excluded from strategy calculations.";
+ }catch(e){console.warn("Published data unavailable",e);}
+}
+loadPublishedData();
+setInterval(loadPublishedData,300000);
